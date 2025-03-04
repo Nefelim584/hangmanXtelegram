@@ -1,6 +1,7 @@
 from telegram import Update, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, ConversationHandler, CallbackQueryHandler
 import os
+import json
 from dotenv import load_dotenv
 from hangsman_botV import HangmanGame, generate_words_from_mistral  # Import from hangsman_botV
 
@@ -8,6 +9,20 @@ load_dotenv()
 
 # Define states for the conversation
 ROUNDS, PLAYING, ASK_RESTART = range(3)
+
+LEADERBOARD_FILE = "leaderboard.json"
+
+# Function to read the leaderboard from the JSON file
+def read_leaderboard():
+    if os.path.exists(LEADERBOARD_FILE):
+        with open(LEADERBOARD_FILE, "r") as file:
+            return json.load(file)
+    return {}
+
+# Function to write the leaderboard to the JSON file
+def write_leaderboard(leaderboard):
+    with open(LEADERBOARD_FILE, "w") as file:
+        json.dump(leaderboard, file)
 
 # Start command handler
 async def start(update: Update, context: CallbackContext) -> int:
@@ -70,10 +85,18 @@ async def playing(update: Update, context: CallbackContext) -> int:
         if context.user_data['current_round'] < context.user_data['rounds']:
             await update.message.reply_text(game.start_new_round())
         else:
+            user = update.message.from_user
+            leaderboard = read_leaderboard()
+            leaderboard[user.username] = max(leaderboard.get(user.username, 0), game.score)
+            write_leaderboard(leaderboard)
+
             keyboard = [
                 [
                     InlineKeyboardButton("Yes", callback_data='yes'),
                     InlineKeyboardButton("No", callback_data='no')
+                ],
+                [
+                    InlineKeyboardButton("View Leaderboard", callback_data='leaderboard')
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -91,6 +114,16 @@ async def ask_restart(update: Update, context: CallbackContext) -> int:
     if user_input == 'yes':
         await query.edit_message_text("How many rounds do you want to play?")
         return ROUNDS
+    elif user_input == 'leaderboard':
+        leaderboard = read_leaderboard()
+        if not leaderboard:
+            await query.edit_message_text("No scores yet.")
+            return ConversationHandler.END
+
+        sorted_leaderboard = sorted(leaderboard.items(), key=lambda x: x[1], reverse=True)
+        leaderboard_text = "\n".join([f"{user}: {score}" for user, score in sorted_leaderboard])
+        await query.edit_message_text(f"Leaderboard:\n{leaderboard_text}")
+        return ConversationHandler.END
     else:
         await query.edit_message_text("Thank you for playing! Goodbye!")
         return ConversationHandler.END
@@ -99,6 +132,17 @@ async def ask_restart(update: Update, context: CallbackContext) -> int:
 async def cancel(update: Update, context: CallbackContext) -> int:
     await update.message.reply_text("Game canceled.")
     return ConversationHandler.END
+
+# Leaderboard command handler
+async def leaderboard(update: Update, context: CallbackContext) -> None:
+    leaderboard = read_leaderboard()
+    if not leaderboard:
+        await update.message.reply_text("No scores yet.")
+        return
+
+    sorted_leaderboard = sorted(leaderboard.items(), key=lambda x: x[1], reverse=True)
+    leaderboard_text = "\n".join([f"{user}: {score}" for user, score in sorted_leaderboard])
+    await update.message.reply_text(f"Leaderboard:\n{leaderboard_text}")
 
 def main():
     # Create the Application and pass it your bot's token.
@@ -116,6 +160,7 @@ def main():
     )
 
     application.add_handler(conv_handler)
+    application.add_handler(CommandHandler('leaderboard', leaderboard))
 
     # Start the Bot
     application.run_polling()
