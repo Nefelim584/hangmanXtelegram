@@ -1,5 +1,5 @@
-from telegram import Update, ForceReply
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, ConversationHandler
+from telegram import Update, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, ConversationHandler, CallbackQueryHandler
 import os
 from dotenv import load_dotenv
 from hangsman_botV import HangmanGame, generate_words_from_mistral  # Import from hangsman_botV
@@ -7,7 +7,7 @@ from hangsman_botV import HangmanGame, generate_words_from_mistral  # Import fro
 load_dotenv()
 
 # Define states for the conversation
-ROUNDS, PLAYING = range(2)
+ROUNDS, PLAYING, ASK_RESTART = range(3)
 
 # Start command handler
 async def start(update: Update, context: CallbackContext) -> int:
@@ -70,10 +70,30 @@ async def playing(update: Update, context: CallbackContext) -> int:
         if context.user_data['current_round'] < context.user_data['rounds']:
             await update.message.reply_text(game.start_new_round())
         else:
-            await update.message.reply_text(f"Game over! Final Score: {game.score}")
-            return ConversationHandler.END
+            keyboard = [
+                [
+                    InlineKeyboardButton("Yes", callback_data='yes'),
+                    InlineKeyboardButton("No", callback_data='no')
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text(f"Game over! Final Score: {game.score}\nDo you want to start a new game?", reply_markup=reply_markup)
+            return ASK_RESTART
 
     return PLAYING
+
+# Ask restart handler
+async def ask_restart(update: Update, context: CallbackContext) -> int:
+    query = update.callback_query
+    await query.answer()
+    user_input = query.data
+
+    if user_input == 'yes':
+        await query.edit_message_text("How many rounds do you want to play?")
+        return ROUNDS
+    else:
+        await query.edit_message_text("Thank you for playing! Goodbye!")
+        return ConversationHandler.END
 
 # Cancel command handler
 async def cancel(update: Update, context: CallbackContext) -> int:
@@ -84,12 +104,13 @@ def main():
     # Create the Application and pass it your bot's token.
     application = Application.builder().token(os.getenv("TELEGRAM_BOT_TOKEN")).build()
 
-    # Add conversation handler with the states ROUNDS and PLAYING
+    # Add conversation handler with the states ROUNDS, PLAYING, and ASK_RESTART
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
             ROUNDS: [MessageHandler(filters.TEXT & ~filters.COMMAND, rounds)],
             PLAYING: [MessageHandler(filters.TEXT & ~filters.COMMAND, playing)],
+            ASK_RESTART: [CallbackQueryHandler(ask_restart)],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
     )
