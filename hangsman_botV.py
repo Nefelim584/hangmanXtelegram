@@ -35,6 +35,10 @@ class HangmanRound:
         self.wrong_guesses = []
         self.display = display
 
+        # Reveal one letter at the start of the round
+        self.revealed_letter = random.choice(self.secret_word)
+        self.guessed_letters.append(self.revealed_letter)
+
     # Show the word with "_" for letters not guessed.
     def display_word(self):
         return " ".join(letter if letter in self.guessed_letters else "_" for letter in self.secret_word)
