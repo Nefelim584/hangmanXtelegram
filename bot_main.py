@@ -8,7 +8,7 @@ from hangsman_botV import HangmanGame, generate_words_from_mistral  # Import fro
 load_dotenv()
 
 # Define states for the conversation
-ROUNDS, PLAYING, ASK_RESTART = range(3)
+DIFFICULTY, ROUNDS, PLAYING, ASK_RESTART = range(4)
 
 LEADERBOARD_FILE = "leaderboard.json"
 
@@ -26,9 +26,25 @@ def write_leaderboard(leaderboard):
 
 # Start command handler
 async def start(update: Update, context: CallbackContext) -> int:
-    await update.message.reply_text(
-        "Welcome to Hangman! How many rounds do you want to play?"
-    )
+    keyboard = [
+        [
+            InlineKeyboardButton("Easy", callback_data='easy'),
+            InlineKeyboardButton("Medium", callback_data='medium'),
+            InlineKeyboardButton("Hard", callback_data='hard')
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("Choose a difficulty level:", reply_markup=reply_markup)
+    return DIFFICULTY
+
+# Difficulty handler
+async def difficulty(update: Update, context: CallbackContext) -> int:
+    query = update.callback_query
+    await query.answer()
+    difficulty_level = query.data
+    context.user_data['difficulty'] = difficulty_level
+
+    await query.edit_message_text("How many rounds do you want to play?")
     return ROUNDS
 
 # Rounds handler
@@ -42,7 +58,7 @@ async def rounds(update: Update, context: CallbackContext) -> int:
     context.user_data['rounds'] = rounds
 
     # Generate words for the game
-    generated_words = generate_words_from_mistral(rounds)
+    generated_words = generate_words_from_mistral(50)  # Request more words at once
     if generated_words:
         word_list = generated_words
     else:
@@ -64,6 +80,14 @@ async def rounds(update: Update, context: CallbackContext) -> int:
             # Miscellaneous
             "philosophy", "economics", "psychology", "sociology", "law", "education", "medicine", "innovation", "strategy", "venture"
         ]
+
+    difficulty = context.user_data['difficulty']
+    if difficulty == 'easy':
+        word_list = [word for word in word_list if len(word) <= 6]
+    elif difficulty == 'medium':
+        word_list = [word for word in word_list if len(word) <= 10]
+    elif difficulty == 'hard':
+        word_list = [word for word in word_list if len(word) <= 15]
 
     context.user_data['game'] = HangmanGame(word_list)
     context.user_data['current_round'] = 0
@@ -97,6 +121,9 @@ async def playing(update: Update, context: CallbackContext) -> int:
                 ],
                 [
                     InlineKeyboardButton("View Leaderboard", callback_data='leaderboard')
+                ],
+                [
+                    InlineKeyboardButton("Change Difficulty", callback_data='change_difficulty')
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -124,6 +151,17 @@ async def ask_restart(update: Update, context: CallbackContext) -> int:
         leaderboard_text = "\n".join([f"{user}: {score}" for user, score in sorted_leaderboard])
         await query.edit_message_text(f"Leaderboard:\n{leaderboard_text}")
         return ConversationHandler.END
+    elif user_input == 'change_difficulty':
+        keyboard = [
+            [
+                InlineKeyboardButton("Easy", callback_data='easy'),
+                InlineKeyboardButton("Medium", callback_data='medium'),
+                InlineKeyboardButton("Hard", callback_data='hard')
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text("Choose a difficulty level:", reply_markup=reply_markup)
+        return DIFFICULTY
     else:
         await query.edit_message_text("Thank you for playing! Goodbye!")
         return ConversationHandler.END
@@ -148,10 +186,11 @@ def main():
     # Create the Application and pass it your bot's token.
     application = Application.builder().token(os.getenv("TELEGRAM_BOT_TOKEN")).build()
 
-    # Add conversation handler with the states ROUNDS, PLAYING, and ASK_RESTART
+    # Add conversation handler with the states DIFFICULTY, ROUNDS, PLAYING, and ASK_RESTART
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
+            DIFFICULTY: [CallbackQueryHandler(difficulty)],
             ROUNDS: [MessageHandler(filters.TEXT & ~filters.COMMAND, rounds)],
             PLAYING: [MessageHandler(filters.TEXT & ~filters.COMMAND, playing)],
             ASK_RESTART: [CallbackQueryHandler(ask_restart)],
