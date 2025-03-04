@@ -125,7 +125,7 @@ async def main_menu_selection(update: Update, context: CallbackContext) -> int:
     else:
         await query.edit_message_text("Thank you for playing! Goodbye!")
         return ConversationHandler.END
-
+    
 # Difficulty handler
 async def difficulty(update: Update, context: CallbackContext) -> int:
     query = update.callback_query
@@ -190,10 +190,20 @@ async def rounds(update: Update, context: CallbackContext) -> int:
 # Playing handler
 async def playing(update: Update, context: CallbackContext) -> int:
     game = context.user_data['game']
-    user_input = update.message.text.strip()
+    query = update.callback_query
+    if query:
+        await query.answer()
+        user_input = query.data
+    else:
+        user_input = update.message.text.strip()
 
-    response = game.handle_guess(user_input)
-    await update.message.reply_text(response)
+    if user_input == 'quit':
+        await update.message.reply_text("You have quit the game. Returning to the main menu.")
+        return await main_menu(update, context)
+
+    if not query:
+        response = game.handle_guess(user_input)
+        await update.message.reply_text(response)
 
     if game.current_round.is_won() or game.current_round.is_lost():
         context.user_data['current_round'] += 1
@@ -218,7 +228,15 @@ async def playing(update: Update, context: CallbackContext) -> int:
             await update.message.reply_text(f"Game over! Final Score: {game.score}\nDo you want to start a new game?", reply_markup=reply_markup)
             return ASK_RESTART
 
+    # Add the "Quit" button to the keyboard
+    keyboard = [
+        [InlineKeyboardButton("Quit", callback_data='quit')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("If you want to quit:", reply_markup=reply_markup)
+
     return PLAYING
+
 
 # Ask restart handler
 async def ask_restart(update: Update, context: CallbackContext) -> int:
@@ -272,7 +290,7 @@ def main():
             MAIN_MENU: [CallbackQueryHandler(main_menu_selection)],
             DIFFICULTY: [CallbackQueryHandler(difficulty)],
             ROUNDS: [MessageHandler(filters.TEXT & ~filters.COMMAND, rounds)],
-            PLAYING: [MessageHandler(filters.TEXT & ~filters.COMMAND, playing)],
+            PLAYING: [CallbackQueryHandler(playing), MessageHandler(filters.TEXT & ~filters.COMMAND, playing)],
             ASK_RESTART: [CallbackQueryHandler(ask_restart)],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
