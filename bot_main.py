@@ -32,7 +32,8 @@ async def main_menu(update: Update, context: CallbackContext) -> int:
             InlineKeyboardButton("View Leaderboard", callback_data='view_leaderboard')
         ],
         [
-            InlineKeyboardButton("Change Difficulty", callback_data='change_difficulty')
+            InlineKeyboardButton("Change Difficulty", callback_data='change_difficulty'),
+            InlineKeyboardButton("Description", callback_data='description')
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -43,6 +44,33 @@ async def main_menu(update: Update, context: CallbackContext) -> int:
         await update.callback_query.message.reply_text("Main Menu:", reply_markup=reply_markup)
     
     return MAIN_MENU
+
+# Description handler
+async def description(update: Update, context: CallbackContext) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    description_text = (
+        "Welcome to Hangman!\n\n"
+        "Rules:\n"
+        "1. You will be given a word to guess, one letter at a time.\n"
+        "2. You have a limited number of attempts to guess the word.\n"
+        "3. Each incorrect guess reduces the number of attempts left.\n"
+        "4. If you guess the word before running out of attempts, you win!\n"
+        "5. If you run out of attempts, you lose.\n\n"
+        "Scoring:\n"
+        "- Easy: 60 points per guessed word.\n"
+        "- Medium: 120 points per guessed word.\n"
+        "- Hard: 180 points per guessed word.\n"
+    )
+
+    keyboard = [
+        [InlineKeyboardButton("Main Menu", callback_data='main_menu')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(description_text, reply_markup=reply_markup)
+    return MAIN_MENU
+
 
 # Start command handler
 async def start(update: Update, context: CallbackContext) -> int:
@@ -90,6 +118,8 @@ async def main_menu_selection(update: Update, context: CallbackContext) -> int:
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text("Choose a difficulty level:", reply_markup=reply_markup)
         return DIFFICULTY
+    elif user_input == 'description':
+        return await description(update, context)
     elif user_input == 'main_menu':
         return await main_menu(update, context)
     else:
