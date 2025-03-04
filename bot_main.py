@@ -198,7 +198,10 @@ async def playing(update: Update, context: CallbackContext) -> int:
         user_input = update.message.text.strip()
 
     if user_input == 'quit':
-        await update.message.reply_text("You have quit the game. Returning to the main menu.")
+        if update.message:
+            await update.message.reply_text("You have quit the game. Returning to the main menu.")
+        elif update.callback_query:
+            await update.callback_query.message.reply_text("You have quit the game. Returning to the main menu.")
         return await main_menu(update, context)
 
     if not query:
