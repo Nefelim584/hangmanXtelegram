@@ -87,6 +87,7 @@ class HangmanGame:
         self.score = 0
         self.display = HangmanDisplay()
         self.current_round = None
+        self.difficulty = 'medium'  # Default difficulty
 
     # Start a new round of Hangman.
     def start_new_round(self):
@@ -114,15 +115,22 @@ class HangmanGame:
             result = self.current_round.guess_letter(guess)
             status = self.current_round.get_status()
             if self.current_round.is_won():
-                bonus = self.current_round.attempts_left * 10
-                self.score += bonus
-                return f"{result}\n{status}\nYou won! The word was: {self.current_round.secret_word}\nYou get {bonus} bonus points.\nTotal Score: {self.score}\n"
+                if self.difficulty == 'easy':
+                    self.score += 60
+                elif self.difficulty == 'medium':
+                    self.score += 120
+                elif self.difficulty == 'hard':
+                    self.score += 180
+                return f"{result}\n{status}\nYou won! The word was: {self.current_round.secret_word}\nTotal Score: {self.score}\n"
             elif self.current_round.is_lost():
                 return f"{result}\n{status}\nYou lost! The word was: {self.current_round.secret_word}\nTotal Score: {self.score}\n"
             else:
                 return f"{result}\n{status}"
         else:
             return "Invalid input. Please enter a single letter."
+
+    def set_difficulty(self, difficulty):
+        self.difficulty = difficulty
 
 
 def generate_words_from_mistral(num_words):

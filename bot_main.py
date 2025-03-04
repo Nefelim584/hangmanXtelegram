@@ -137,7 +137,9 @@ async def rounds(update: Update, context: CallbackContext) -> int:
     elif difficulty == 'hard':
         word_list = [word for word in word_list if len(word) <= 15]
 
-    context.user_data['game'] = HangmanGame(word_list)
+    game = HangmanGame(word_list)
+    game.set_difficulty(difficulty)
+    context.user_data['game'] = game
     context.user_data['current_round'] = 0
 
     await update.message.reply_text(f"Starting the game with {rounds} rounds. Let's begin!")
