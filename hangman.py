@@ -1,16 +1,23 @@
 import random
+import os
+import requests
+from dotenv import load_dotenv
+import json
+from mistralai import Mistral
+
+load_dotenv()
 
 # This class shows the hangman pictures.
 class HangmanDisplay:
     def __init__(self):
         self.stages = [
-            "  _______\n |/      |\n |      (_)\n |      \\|/\n |       |\n |      / \\\n |\n_|___",
-            "  _______\n |/      |\n |      (_)\n |      \\|/\n |       |\n |      /\n |\n_|___",
-            "  _______\n |/      |\n |      (_)\n |      \\|/\n |       |\n |\n |\n_|___",
-            "  _______\n |/      |\n |      (_)\n |      \\|\n |       |\n |\n |\n_|___",
-            "  _______\n |/      |\n |      (_)\n |       |\n |       |\n |\n |\n_|___",
+            "  _______\n |/      |\n |\n |\n |\n |\n |\n_|___",
             "  _______\n |/      |\n |      (_)\n |\n |\n |\n |\n_|___",
-            "  _______\n |/      |\n |\n |\n |\n |\n |\n_|___"
+            "  _______\n |/      |\n |      (_)\n |       |\n |       |\n |\n |\n_|___",
+            "  _______\n |/      |\n |      (_)\n |      \\|\n |       |\n |\n |\n_|___",
+            "  _______\n |/      |\n |      (_)\n |      \\|/\n |       |\n |\n |\n_|___",
+            "  _______\n |/      |\n |      (_)\n |      \\|/\n |       |\n |      /\n |\n_|___",
+            "  _______\n |/      |\n |      (_)\n |      \\|/\n |       |\n |      / \\\n |\n_|___"
         ]
 
     def get_stage(self, attempts_left, max_attempts):
@@ -18,7 +25,6 @@ class HangmanDisplay:
         if index >= len(self.stages):
             index = len(self.stages) - 1
         return self.stages[index]
-
 
 # This class handles one round of Hangman.
 class HangmanRound:
@@ -128,6 +134,7 @@ class HangmanGame:
 
     # Start the game with many rounds.
     def play(self):
+        global rounds
         print("Welcome to Hangman!")
         rounds_input = input("How many rounds do you want to play? ")
         try:
@@ -144,29 +151,70 @@ class HangmanGame:
         print("Thanks for playing!")
 
 
-def main():
-    # A big list of words on different topics.
-    word_list = [
-        # Technology
-        "python", "programming", "algorithm", "compiler", "debugging", "encryption", "server", "cloud", "network", "database",
-        # Nature
-        "forest", "ocean", "mountain", "desert", "volcano", "rainforest", "glacier", "river", "canyon", "waterfall",
-        # History
-        "revolution", "empire", "renaissance", "medieval", "civilization", "pharaoh", "dynasty", "treaty", "invasion", "monarchy",
-        # Sports
-        "soccer", "basketball", "tennis", "cricket", "baseball", "hockey", "golf", "rugby", "swimming", "cycling",
-        # Food
-        "pizza", "sushi", "burger", "pasta", "salad", "steak", "curry", "taco", "dumpling", "sandwich",
-        # Art
-        "painting", "sculpture", "theater", "cinema", "dance", "music", "literature", "poetry", "photography", "architecture",
-        # Science
-        "physics", "chemistry", "biology", "astronomy", "geology", "ecology", "evolution", "genetics", "robotics", "quantum",
-        # Miscellaneous
-        "philosophy", "economics", "psychology", "sociology", "law", "education", "medicine", "innovation", "strategy", "venture"
+
+def generate_words_from_mistral(num_words):
+    """
+    Generate a list of words using the Mistral 7B API.
+    The function uses the MISTRAL_API_KEY environment variable.
+    """
+    api_key = os.getenv("MISTRAL_API_KEY")
+    if not api_key:
+        print("Mistral API key not set. Falling back to default words.")
+        return []
+
+    model = "mistral-large-latest"
+    client = Mistral(api_key=api_key)
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant that provides words for a Hangman game."},
+        {"role": "user", "content": f"Generate exactly {num_words} unique, lower-case, single words, separated by commas. Respond only with the words and nothing more. Do not include any additional text."}
     ]
+
+    try:
+        chat_response = client.chat.complete(model=model, messages=messages)
+        content = chat_response.choices[0].message.content.strip()
+        print("API Response Content:", content)  # Debugging line
+
+        # Extract words and filter out any non-word content
+        words = [word.strip() for word in content.split(",") if word.strip().isalpha()]
+        words = words[:num_words]  # Limit to the requested number of words
+        print("Parsed Words:", words, num_words, len(words))  # Debugging line
+
+        # if len(words) != num_words:
+        #     print("Unexpected number of words generated. Using default words.")
+        #     return []
+        return words
+    except Exception as e:
+        print("Error generating words from Mistral:", e)
+        return []
+
+def main():
+    # Try to generate a list of words with Mistral
+    generated_words = generate_words_from_mistral(50)  # Request more words at once
+    if generated_words:
+        word_list = generated_words
+    # else:
+    #     # Fallback: hard-coded word list.
+    #     word_list = [
+    #         # Technology
+    #         "python", "programming", "algorithm", "compiler", "debugging", "encryption", "server", "cloud", "network", "database",
+    #         # Nature
+    #         "forest", "ocean", "mountain", "desert", "volcano", "rainforest", "glacier", "river", "canyon", "waterfall",
+    #         # History
+    #         "revolution", "empire", "renaissance", "medieval", "civilization", "pharaoh", "dynasty", "treaty", "invasion", "monarchy",
+    #         # Sports
+    #         "soccer", "basketball", "tennis", "cricket", "baseball", "hockey", "golf", "rugby", "swimming", "cycling",
+    #         # Food
+    #         "pizza", "sushi", "burger", "pasta", "salad", "steak", "curry", "taco", "dumpling", "sandwich",
+    #         # Art
+    #         "painting", "sculpture", "theater", "cinema", "dance", "music", "literature", "poetry", "photography", "architecture",
+    #         # Science
+    #         "physics", "chemistry", "biology", "astronomy", "geology", "ecology", "evolution", "genetics", "robotics", "quantum",
+    #         # Miscellaneous
+    #         "philosophy", "economics", "psychology", "sociology", "law", "education", "medicine", "innovation", "strategy", "venture"
+    #     ]
+
     game = HangmanGame(word_list)
     game.play()
-
 
 if __name__ == "__main__":
     main()
