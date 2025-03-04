@@ -8,7 +8,7 @@ from hangsman_botV import HangmanGame, generate_words_from_mistral  # Import fro
 load_dotenv()
 
 # Define states for the conversation
-DIFFICULTY, ROUNDS, PLAYING, ASK_RESTART = range(4)
+MAIN_MENU, DIFFICULTY, ROUNDS, PLAYING, ASK_RESTART = range(5)
 
 LEADERBOARD_FILE = "leaderboard.json"
 
@@ -24,18 +24,66 @@ def write_leaderboard(leaderboard):
     with open(LEADERBOARD_FILE, "w") as file:
         json.dump(leaderboard, file)
 
-# Start command handler
-async def start(update: Update, context: CallbackContext) -> int:
+# Main menu handler
+async def main_menu(update: Update, context: CallbackContext) -> int:
     keyboard = [
         [
-            InlineKeyboardButton("Easy", callback_data='easy'),
-            InlineKeyboardButton("Medium", callback_data='medium'),
-            InlineKeyboardButton("Hard", callback_data='hard')
+            InlineKeyboardButton("Start New Game", callback_data='start_new_game'),
+            InlineKeyboardButton("View Leaderboard", callback_data='view_leaderboard')
+        ],
+        [
+            InlineKeyboardButton("Change Difficulty", callback_data='change_difficulty')
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Choose a difficulty level:", reply_markup=reply_markup)
-    return DIFFICULTY
+    
+    if update.message:
+        await update.message.reply_text("Main Menu:", reply_markup=reply_markup)
+    elif update.callback_query:
+        await update.callback_query.message.reply_text("Main Menu:", reply_markup=reply_markup)
+    
+    return MAIN_MENU
+
+# Start command handler
+async def start(update: Update, context: CallbackContext) -> int:
+    return await main_menu(update, context)
+
+# Main menu selection handler
+async def main_menu_selection(update: Update, context: CallbackContext) -> int:
+    query = update.callback_query
+    await query.answer()
+    user_input = query.data
+
+    if user_input == 'start_new_game':
+        # Set default difficulty to 'easy' if not already set
+        if 'difficulty' not in context.user_data:
+            context.user_data['difficulty'] = 'easy'
+        await query.edit_message_text("How many rounds do you want to play?")
+        return ROUNDS
+    elif user_input == 'view_leaderboard':
+        leaderboard = read_leaderboard()
+        if not leaderboard:
+            await query.edit_message_text("No scores yet.")
+            return MAIN_MENU
+
+        sorted_leaderboard = sorted(leaderboard.items(), key=lambda x: x[1], reverse=True)
+        leaderboard_text = "\n".join([f"{user}: {score}" for user, score in sorted_leaderboard])
+        await query.edit_message_text(f"Leaderboard:\n{leaderboard_text}")
+        return MAIN_MENU
+    elif user_input == 'change_difficulty':
+        keyboard = [
+            [
+                InlineKeyboardButton("Easy", callback_data='easy'),
+                InlineKeyboardButton("Medium", callback_data='medium'),
+                InlineKeyboardButton("Hard", callback_data='hard')
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text("Choose a difficulty level:", reply_markup=reply_markup)
+        return DIFFICULTY
+    else:
+        await query.edit_message_text("Thank you for playing! Goodbye!")
+        return ConversationHandler.END
 
 # Difficulty handler
 async def difficulty(update: Update, context: CallbackContext) -> int:
@@ -120,10 +168,7 @@ async def playing(update: Update, context: CallbackContext) -> int:
                     InlineKeyboardButton("No", callback_data='no')
                 ],
                 [
-                    InlineKeyboardButton("View Leaderboard", callback_data='leaderboard')
-                ],
-                [
-                    InlineKeyboardButton("Change Difficulty", callback_data='change_difficulty')
+                    InlineKeyboardButton("Main Menu", callback_data='main_menu')
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -141,27 +186,8 @@ async def ask_restart(update: Update, context: CallbackContext) -> int:
     if user_input == 'yes':
         await query.edit_message_text("How many rounds do you want to play?")
         return ROUNDS
-    elif user_input == 'leaderboard':
-        leaderboard = read_leaderboard()
-        if not leaderboard:
-            await query.edit_message_text("No scores yet.")
-            return ConversationHandler.END
-
-        sorted_leaderboard = sorted(leaderboard.items(), key=lambda x: x[1], reverse=True)
-        leaderboard_text = "\n".join([f"{user}: {score}" for user, score in sorted_leaderboard])
-        await query.edit_message_text(f"Leaderboard:\n{leaderboard_text}")
-        return ConversationHandler.END
-    elif user_input == 'change_difficulty':
-        keyboard = [
-            [
-                InlineKeyboardButton("Easy", callback_data='easy'),
-                InlineKeyboardButton("Medium", callback_data='medium'),
-                InlineKeyboardButton("Hard", callback_data='hard')
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text("Choose a difficulty level:", reply_markup=reply_markup)
-        return DIFFICULTY
+    elif user_input == 'main_menu':
+        return await main_menu(update, context)
     else:
         await query.edit_message_text("Thank you for playing! Goodbye!")
         return ConversationHandler.END
@@ -186,10 +212,11 @@ def main():
     # Create the Application and pass it your bot's token.
     application = Application.builder().token(os.getenv("TELEGRAM_BOT_TOKEN")).build()
 
-    # Add conversation handler with the states DIFFICULTY, ROUNDS, PLAYING, and ASK_RESTART
+    # Add conversation handler with the states MAIN_MENU, DIFFICULTY, ROUNDS, PLAYING, and ASK_RESTART
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
+            MAIN_MENU: [CallbackQueryHandler(main_menu_selection)],
             DIFFICULTY: [CallbackQueryHandler(difficulty)],
             ROUNDS: [MessageHandler(filters.TEXT & ~filters.COMMAND, rounds)],
             PLAYING: [MessageHandler(filters.TEXT & ~filters.COMMAND, playing)],
