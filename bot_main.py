@@ -63,12 +63,21 @@ async def main_menu_selection(update: Update, context: CallbackContext) -> int:
     elif user_input == 'view_leaderboard':
         leaderboard = read_leaderboard()
         if not leaderboard:
-            await query.edit_message_text("No scores yet.")
+            keyboard = [
+                [InlineKeyboardButton("Main Menu", callback_data='main_menu')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text("No scores yet.", reply_markup=reply_markup)
             return MAIN_MENU
 
         sorted_leaderboard = sorted(leaderboard.items(), key=lambda x: x[1], reverse=True)
         leaderboard_text = "\n".join([f"{user}: {score}" for user, score in sorted_leaderboard])
-        await query.edit_message_text(f"Leaderboard:\n{leaderboard_text}")
+        
+        keyboard = [
+            [InlineKeyboardButton("Main Menu", callback_data='main_menu')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(f"Leaderboard:\n{leaderboard_text}", reply_markup=reply_markup)
         return MAIN_MENU
     elif user_input == 'change_difficulty':
         keyboard = [
@@ -81,6 +90,8 @@ async def main_menu_selection(update: Update, context: CallbackContext) -> int:
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text("Choose a difficulty level:", reply_markup=reply_markup)
         return DIFFICULTY
+    elif user_input == 'main_menu':
+        return await main_menu(update, context)
     else:
         await query.edit_message_text("Thank you for playing! Goodbye!")
         return ConversationHandler.END
@@ -203,12 +214,22 @@ async def cancel(update: Update, context: CallbackContext) -> int:
 async def leaderboard(update: Update, context: CallbackContext) -> None:
     leaderboard = read_leaderboard()
     if not leaderboard:
-        await update.message.reply_text("No scores yet.")
+        keyboard = [
+            [InlineKeyboardButton("Main Menu", callback_data='main_menu')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text("No scores yet.", reply_markup=reply_markup)
         return
 
     sorted_leaderboard = sorted(leaderboard.items(), key=lambda x: x[1], reverse=True)
     leaderboard_text = "\n".join([f"{user}: {score}" for user, score in sorted_leaderboard])
-    await update.message.reply_text(f"Leaderboard:\n{leaderboard_text}")
+    
+    keyboard = [
+        [InlineKeyboardButton("Main Menu", callback_data='main_menu')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(f"Leaderboard:\n{leaderboard_text}", reply_markup=reply_markup)
+
 
 def main():
     # Create the Application and pass it your bot's token.
